@@ -1,122 +1,240 @@
+
 (() => {
   const KEY = "finova_data_v1";
+  const THEME_KEY = "finova_theme";
   const defaultCategories = [
-    {id:crypto.randomUUID(), name:"Alimentación", color:"#64e6c3"},
-    {id:crypto.randomUUID(), name:"Transporte", color:"#55a8ff"},
-    {id:crypto.randomUUID(), name:"Vivienda", color:"#b18cff"},
-    {id:crypto.randomUUID(), name:"Salud", color:"#ff8f9f"},
-    {id:crypto.randomUUID(), name:"Entretenimiento", color:"#ffc857"},
-    {id:crypto.randomUUID(), name:"Salario", color:"#6ee7ff"}
+    {id:crypto.randomUUID(), name:"Alimentación", color:"#2f9e7a"},
+    {id:crypto.randomUUID(), name:"Transporte", color:"#3b82f6"},
+    {id:crypto.randomUUID(), name:"Vivienda", color:"#8b6cf0"},
+    {id:crypto.randomUUID(), name:"Salud", color:"#e5637a"},
+    {id:crypto.randomUUID(), name:"Entretenimiento", color:"#e0a526"},
+    {id:crypto.randomUUID(), name:"Salario", color:"#2aa7c9"}
   ];
+  const defaultSettings = {cardName:"Tarjeta de crédito", payDay:5, limit:0};
+ 
   let data = load();
   let movementType = "income";
   let editingMovement = null;
   let editingCategory = null;
   let editingGoal = null;
-
+ 
   const $ = id => document.getElementById(id);
   const money = n => new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(Number(n)||0);
-  const dateTime = iso => new Intl.DateTimeFormat("es-CO",{dateStyle:"medium",timeStyle:"short"}).format(new Date(iso));
-  const dateOnly = iso => new Intl.DateTimeFormat("es-CO",{dateStyle:"medium"}).format(new Date(iso));
+  const dateTime = d => new Intl.DateTimeFormat("es-CO",{dateStyle:"medium",timeStyle:"short"}).format(new Date(d));
+  const dateOnly = d => new Intl.DateTimeFormat("es-CO",{dateStyle:"medium"}).format(new Date(d));
+  const longDate = d => new Intl.DateTimeFormat("es-CO",{day:"numeric",month:"long"}).format(new Date(d));
   const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+  const ic = name => `<svg class="ic"><use href="#i-${name}"/></svg>`;
+  const sum = list => list.reduce((s,m)=>s+m.amount,0);
+  const monthOf = d => { d=new Date(d); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
+ 
+  /* ---------- Datos ---------- */
   function load(){
     try{
-      const saved=JSON.parse(localStorage.getItem(KEY));
-      if(saved && saved.categories && saved.movements && saved.goals) return saved;
+      const saved = JSON.parse(localStorage.getItem(KEY));
+      if(saved && saved.categories && saved.movements && saved.goals){
+        saved.settings = {...defaultSettings, ...(saved.settings||{})};
+        return saved;
+      }
     }catch(e){}
-    return {categories:defaultCategories,movements:[],goals:[]};
+    return {categories:defaultCategories, movements:[], goals:[], settings:{...defaultSettings}};
   }
-  function save(){localStorage.setItem(KEY,JSON.stringify(data));}
+  function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
   function toast(msg){
-    $("toast").textContent=msg;$("toast").classList.add("show");
-    clearTimeout(window.__toast);window.__toast=setTimeout(()=>$("toast").classList.remove("show"),2300);
+    $("toast").textContent = msg; $("toast").classList.add("show");
+    clearTimeout(window.__toast); window.__toast = setTimeout(()=>$("toast").classList.remove("show"), 2600);
   }
-  function category(id){return data.categories.find(c=>c.id===id)}
-  function progress(goal){
-    const total=data.movements.filter(m=>m.categoryId===goal.categoryId && m.type==="income").reduce((s,m)=>s+m.amount,0);
-    return Math.min(100,(total/goal.target)*100);
+  const category = id => data.categories.find(c=>c.id===id);
+ 
+  /* ---------- Lógica de tarjeta ----------
+     Una compra con tarjeta (type "card") no cuenta en el mes en que se hace:
+     se cobra el día de pago (2 a 5) del mes siguiente. */
+  const payDay = () => Math.min(5, Math.max(2, Number(data.settings.payDay)||5));
+  const dueDate = m => { const d=new Date(m.createdAt); return new Date(d.getFullYear(), d.getMonth()+1, payDay()); };
+  const isPending = m => m.type==="card" && dueDate(m) > new Date();
+  // Un movimiento afecta el saldo cuando llega su fecha efectiva
+  const affectsBalance = m => m.type==="card" ? dueDate(m) <= new Date() : true;
+  // Mes al que pertenece el movimiento para los totales mensuales
+  const monthOfMovement = m => monthOf(m.type==="card" ? dueDate(m) : m.createdAt);
+ 
+  function cardStats(){
+    const pending = data.movements.filter(isPending);
+    const total = sum(pending);
+    let next = null, nextAmount = 0;
+    if(pending.length){
+      next = new Date(Math.min(...pending.map(m=>+dueDate(m))));
+      nextAmount = sum(pending.filter(m=>+dueDate(m)===+next));
+    }
+    return {total, next, nextAmount, count:pending.length};
   }
-  function renderAll(){renderCategories();renderSelects();renderDashboard();renderHistory();renderGoals();save();}
+ 
+  /* ---------- Render ---------- */
+  function renderAll(){
+    renderCategories(); renderSelects(); renderDashboard(); renderHistory(); renderGoals(); renderCard(); updateCardHint(); save();
+  }
   function renderSelects(){
-    const opts=data.categories.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    const opts = data.categories.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    const empty = '<option value="">Crea una categoría primero</option>';
     const current=$("category").value, currentGoal=$("goalCategory").value, currentFilter=$("filterCategory").value;
-    $("category").innerHTML=opts || '<option value="">Crea una categoría primero</option>';
-    $("goalCategory").innerHTML=opts || '<option value="">Crea una categoría primero</option>';
-    $("filterCategory").innerHTML='<option value="">Todas las categorías</option>'+opts;
+    $("category").innerHTML = opts || empty;
+    $("goalCategory").innerHTML = opts || empty;
+    $("filterCategory").innerHTML = '<option value="">Todas las categorías</option>'+opts;
     if([...$("category").options].some(o=>o.value===current)) $("category").value=current;
     if([...$("goalCategory").options].some(o=>o.value===currentGoal)) $("goalCategory").value=currentGoal;
-    $("filterCategory").value=currentFilter;
+    $("filterCategory").value = currentFilter;
   }
+ 
   function renderDashboard(){
-    const income=data.movements.filter(m=>m.type==="income").reduce((s,m)=>s+m.amount,0);
-    const expense=data.movements.filter(m=>m.type==="expense").reduce((s,m)=>s+m.amount,0);
-    $("statIncome").textContent=money(income);$("statExpense").textContent=money(expense);
-    $("statBalance").textContent=money(income-expense);$("statCount").textContent=data.movements.length;
-    const recent=[...data.movements].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
-    $("recentMovements").innerHTML=recent.length?recent.map(movementHTML).join(""):'<div class="empty">Aún no hay movimientos.<br>Registra tu primer ingreso o gasto.</div>';
-    const goals=data.goals.slice(0,3);
-    $("dashboardGoals").innerHTML=goals.length?goals.map(goalHTML).join(""):'<div class="empty">Crea una meta para empezar a medir tu progreso.</div>';
+    const key = $("monthPick").value || monthOf(new Date());
+    const balance = sum(data.movements.filter(m=>m.type==="income")) - sum(data.movements.filter(m=>m.type!=="income" && affectsBalance(m)));
+    const inMonth = data.movements.filter(m=>monthOfMovement(m)===key);
+    const income = sum(inMonth.filter(m=>m.type==="income"));
+    const monthCard = sum(inMonth.filter(m=>m.type==="card"));
+    const expense = sum(inMonth.filter(m=>m.type==="expense")) + monthCard;
+    const cs = cardStats();
+ 
+    $("statBalance").textContent = money(balance);
+    $("statCount").textContent = `${data.movements.length} movimiento${data.movements.length===1?"":"s"}`;
+    $("statIncome").textContent = money(income);
+    $("statExpense").textContent = money(expense);
+    $("statExpenseNote").textContent = monthCard>0 ? `Incluye ${money(monthCard)} de tarjeta` : "";
+    $("statCard").textContent = money(cs.total);
+    $("statCardNote").textContent = cs.next ? `Próximo pago el ${longDate(cs.next)}` : "Sin pagos pendientes";
+ 
+    const recent = [...data.movements].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
+    $("recentMovements").innerHTML = recent.length ? recent.map(movementHTML).join("") : '<div class="empty">Aún no hay movimientos. Registra tu primer ingreso o gasto.</div>';
+ 
+    // Gastos por categoría del mes seleccionado
+    const totals = {};
+    inMonth.filter(m=>m.type!=="income").forEach(m=>{ totals[m.categoryId]=(totals[m.categoryId]||0)+m.amount; });
+    const entries = Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const spent = entries.reduce((s,e)=>s+e[1],0) || 1;
+    $("spendByCategory").innerHTML = entries.length ? entries.map(([id,v])=>{
+      const c = category(id);
+      return `<div class="cat-row"><div class="cat-top"><span class="dot" style="--c:${c?.color||"#999"}"></span><span>${escapeHtml(c?.name||"Categoría eliminada")}</span><strong>${money(v)}</strong></div>
+      <div class="bar"><span style="width:${(v/spent*100).toFixed(1)}%;background:${c?.color||"#999"}"></span></div></div>`;
+    }).join("") : '<div class="empty">Sin gastos en este mes.</div>';
   }
+ 
   function movementHTML(m){
-    const c=category(m.categoryId), sign=m.type==="income"?"+":"−";
-    return `<div class="movement">
-      <div class="m-icon ${m.type==="income"?"i":"e"}">${m.type==="income"?"↗":"↘"}</div>
-      <div class="m-main"><strong>${escapeHtml(m.description||c?.name||"Movimiento")}</strong><span>${escapeHtml(c?.name||"Categoría eliminada")} · ${dateTime(m.createdAt)}</span></div>
-      <div class="m-amount ${m.type}">${sign}${money(m.amount)}</div>
-      <div class="m-actions"><button class="mini" title="Editar" data-edit="${m.id}">✎</button><button class="mini" title="Eliminar" data-delete="${m.id}">×</button></div>
+    const c = category(m.categoryId), card = m.type==="card";
+    const sign = m.type==="income" ? "+" : "−";
+    const icon = m.type==="income" ? "in" : card ? "card" : "out";
+    const second = card
+      ? `Se cobra el ${dateOnly(dueDate(m))}`
+      : dateTime(m.createdAt);
+    const badge = card ? `<span class="badge ${isPending(m)?"card":""}">${isPending(m)?"Pendiente":"Pagado"}</span>` : "";
+    return `<div class="row">
+      <div class="r-ic ${m.type}">${ic(icon)}</div>
+      <div class="r-main"><strong>${escapeHtml(m.description||c?.name||"Movimiento")}</strong>
+        <div class="r-meta"><span>${escapeHtml(c?.name||"Categoría eliminada")}</span><span>${second}</span>${badge}</div></div>
+      <div class="amt ${m.type}">${sign}${money(m.amount)}</div>
+      <div class="row-actions"><button class="mini" title="Editar" aria-label="Editar" data-edit="${m.id}">${ic("edit")}</button><button class="mini" title="Eliminar" aria-label="Eliminar" data-delete="${m.id}">${ic("x")}</button></div>
     </div>`;
   }
+ 
+  const typeLabel = {income:"Ingreso", expense:"Gasto", card:"Tarjeta"};
+  const typeBadge = {income:"income", expense:"", card:"card"};
   function renderHistory(){
     const q=$("search").value.trim().toLowerCase(), type=$("filterType").value, cat=$("filterCategory").value;
     const from=$("filterFrom").value?new Date($("filterFrom").value+"T00:00:00"):null;
     const to=$("filterTo").value?new Date($("filterTo").value+"T23:59:59"):null;
     const rows=[...data.movements].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).filter(m=>{
       const c=category(m.categoryId);
-      const text=(m.description+" "+(c?.name||"")).toLowerCase();
+      const text=((m.description||"")+" "+(c?.name||"")).toLowerCase();
       const d=new Date(m.createdAt);
       return (!q||text.includes(q))&&(!type||m.type===type)&&(!cat||m.categoryId===cat)&&(!from||d>=from)&&(!to||d<=to);
     });
     $("historyCount").textContent=`${rows.length} resultado${rows.length===1?"":"s"}`;
     $("historyBody").innerHTML=rows.length?rows.map(m=>{
-      const c=category(m.categoryId);
-      return `<tr><td>${dateTime(m.createdAt)}</td><td><span class="badge ${m.type==="income"?"i":"e"}">${m.type==="income"?"Ingreso":"Gasto"}</span></td>
-      <td>${escapeHtml(c?.name||"—")}</td><td>${escapeHtml(m.description||"—")}</td><td class="${m.type}"><strong>${m.type==="income"?"+":"−"}${money(m.amount)}</strong></td>
-      <td><button class="mini" data-edit="${m.id}">✎</button><button class="mini" data-delete="${m.id}">×</button></td></tr>`;
+      const c=category(m.categoryId), card=m.type==="card";
+      return `<tr><td>${dateTime(m.createdAt)}</td>
+      <td><span class="badge ${typeBadge[m.type]}">${typeLabel[m.type]}</span></td>
+      <td>${escapeHtml(c?.name||"—")}</td><td>${escapeHtml(m.description||"—")}</td>
+      <td class="right amt ${m.type}">${m.type==="income"?"+":"−"}${money(m.amount)}${card?`<span class="sub">Se cobra el ${dateOnly(dueDate(m))}</span>`:""}</td>
+      <td><div class="row-actions"><button class="mini" aria-label="Editar" data-edit="${m.id}">${ic("edit")}</button><button class="mini" aria-label="Eliminar" data-delete="${m.id}">${ic("x")}</button></div></td></tr>`;
     }).join(""):'<tr><td colspan="6"><div class="empty">No hay movimientos que coincidan con los filtros.</div></td></tr>';
   }
+ 
   function renderCategories(){
     $("categoryCount").textContent=data.categories.length;
     $("categoryList").innerHTML=data.categories.length?data.categories.map(c=>`<div class="category-item">
-      <span class="dot" style="--c:${c.color}"></span><div class="grow"><strong>${escapeHtml(c.name)}</strong></div>
-      <div class="category-actions"><button class="mini" data-cat-edit="${c.id}">✎</button><button class="mini" data-cat-delete="${c.id}">×</button></div>
+      <span class="dot" style="--c:${c.color}"></span><div class="grow">${escapeHtml(c.name)}</div>
+      <div class="category-actions"><button class="mini" aria-label="Editar" data-cat-edit="${c.id}">${ic("edit")}</button><button class="mini" aria-label="Eliminar" data-cat-delete="${c.id}">${ic("x")}</button></div>
     </div>`).join(""):'<div class="empty">No tienes categorías.</div>';
   }
+ 
+  function goalProgress(goal){
+    const total = sum(data.movements.filter(m=>m.categoryId===goal.categoryId && m.type==="income"));
+    return {total, pct:Math.min(100,(total/goal.target)*100)};
+  }
   function goalHTML(g, card=false){
-    const c=category(g.categoryId), p=progress(g);
-    return `<div class="${card?"card goal-card":"goal"}">
-      ${card?`<button class="mini goal-delete" data-goal-delete="${g.id}">×</button>`:""}
-      <div class="goal-top"><strong>${escapeHtml(g.name)}</strong><span>${p.toFixed(0)}%</span></div>
-      <div class="goal-meta">${escapeHtml(c?.name||"Sin categoría")} ${g.deadline?"· hasta "+dateOnly(g.deadline):""}</div>
-      <div class="progress"><span style="width:${p}%"></span></div>
-      <div class="goal-meta"><strong style="color:var(--text)">${money(g.current||0)}</strong> de ${money(g.target)}</div>
-      ${card?`<div class="actions" style="margin-top:8px"><button class="btn" data-goal-edit="${g.id}">Editar</button></div>`:""}
+    const c=category(g.categoryId), p=goalProgress(g);
+    return `<div class="${card?"goal-card goal":"goal"}">
+      ${card?`<button class="mini goal-delete" aria-label="Eliminar objetivo" data-goal-delete="${g.id}">${ic("x")}</button>`:""}
+      <div class="goal-top"><strong>${escapeHtml(g.name)}</strong><span>${p.pct.toFixed(0)}%</span></div>
+      <div class="goal-meta">${escapeHtml(c?.name||"Sin categoría")}${g.deadline?", hasta "+dateOnly(g.deadline):""}</div>
+      <div class="progress"><span style="width:${p.pct}%"></span></div>
+      <div class="goal-meta"><strong>${money(p.total)}</strong> de ${money(g.target)}</div>
+      ${card?`<div class="actions" style="margin-top:10px"><button class="btn sm" data-goal-edit="${g.id}">Editar</button></div>`:""}
     </div>`;
   }
   function renderGoals(){
-    data.goals.forEach(g=>g.current=data.movements.filter(m=>m.categoryId===g.categoryId&&m.type==="income").reduce((s,m)=>s+m.amount,0));
-    $("goalList").innerHTML=data.goals.length?data.goals.map(g=>goalHTML(g,true)).join(""):'<div class="card empty" style="grid-column:1/-1">Todavía no tienes objetivos. Crea el primero arriba.</div>';
-    $("dashboardGoals").innerHTML=data.goals.slice(0,3).map(g=>goalHTML(g)).join("")||'<div class="empty">Crea una meta para empezar a medir tu progreso.</div>';
+    $("goalList").innerHTML=data.goals.length?data.goals.map(g=>goalHTML(g,true)).join(""):'<div class="panel empty" style="grid-column:1/-1">Todavía no tienes objetivos. Crea el primero arriba.</div>';
+    $("dashboardGoals").innerHTML=data.goals.slice(0,3).map(g=>goalHTML(g)).join("")||'<div class="empty">Crea un objetivo para medir tu progreso.</div>';
   }
-
-  const titles={dashboard:["Resumen financiero","Tu dinero, de un vistazo."],add:["Nuevo movimiento","Registra un ingreso o gasto."],history:["Historial","Encuentra cualquier movimiento rápidamente."],categories:["Categorías","Organiza tus ingresos y gastos."],goals:["Objetivos financieros","Convierte tus planes en progreso."]};
+ 
+  function renderCard(){
+    const s = data.settings, cs = cardStats();
+    $("ccName").textContent = s.cardName || defaultSettings.cardName;
+    $("ccPending").textContent = money(cs.total);
+    $("ccNext").textContent = cs.next ? `Próximo pago: ${longDate(cs.next)}, ${money(cs.nextAmount)}` : "Sin pagos pendientes";
+    const limit = Number(s.limit)||0;
+    $("ccUsage").hidden = !(limit>0);
+    if(limit>0){
+      $("ccBar").style.width = Math.min(100,cs.total/limit*100)+"%";
+      $("ccUsageText").textContent = `${money(cs.total)} de ${money(limit)} de cupo`;
+    }
+    $("cardName").value = s.cardName===defaultSettings.cardName ? "" : s.cardName;
+    $("payDay").value = String(payDay());
+    $("cardLimit").value = limit || "";
+ 
+    // Pagos agrupados por fecha de cobro
+    const groups = new Map();
+    data.movements.filter(m=>m.type==="card").forEach(m=>{
+      const k=+dueDate(m); if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(m);
+    });
+    const keys=[...groups.keys()];
+    const upcoming=keys.filter(k=>k>Date.now()).sort((a,b)=>a-b);
+    const past=keys.filter(k=>k<=Date.now()).sort((a,b)=>b-a);
+    const html = k => {
+      const list=groups.get(k).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)), paid=k<=Date.now();
+      return `<div class="stmt ${paid?"paid":""}">
+        <div class="stmt-head"><div><strong>Pago del ${dateOnly(k)}</strong><span class="small">${list.length} compra${list.length===1?"":"s"}</span></div>
+        <div class="stmt-right"><span class="badge ${paid?"":"card"}">${paid?"Pagado":"Pendiente"}</span><strong>${money(sum(list))}</strong></div></div>
+        ${list.map(movementHTML).join("")}</div>`;
+    };
+    $("statements").innerHTML = keys.length ? [...upcoming,...past].map(html).join("") : '<div class="empty">Aún no registras compras con tarjeta.</div>';
+  }
+ 
+  /* ---------- Navegación ---------- */
+  const titles={
+    dashboard:["Resumen","Tu dinero, de un vistazo."],
+    add:["Movimiento","Registra un ingreso, gasto o compra con tarjeta."],
+    history:["Historial","Encuentra cualquier movimiento rápidamente."],
+    card:["Tarjeta","Tus compras a crédito y sus fechas de pago."],
+    categories:["Categorías","Organiza tus ingresos y gastos."],
+    goals:["Objetivos","Convierte tus planes en progreso."]
+  };
   function navigate(page){
     document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+page));
-    document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+    document.querySelectorAll(".nav button,.bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
     $("pageTitle").textContent=titles[page][0];$("pageSubtitle").textContent=titles[page][1];
     $("sidebar").classList.remove("open");window.scrollTo({top:0,behavior:"smooth"});
   }
   document.addEventListener("click",e=>{
     const nav=e.target.closest("[data-page]"); if(nav){navigate(nav.dataset.page);return}
+    if(e.target.closest("[data-new-card]")){editingMovement=null;resetMovementForm();setType("card");navigate("add");return}
     const edit=e.target.closest("[data-edit]");if(edit){editMovement(edit.dataset.edit);return}
     const del=e.target.closest("[data-delete]");if(del){deleteMovement(del.dataset.delete);return}
     const ce=e.target.closest("[data-cat-edit]");if(ce){openCategoryEdit(ce.dataset.catEdit);return}
@@ -125,36 +243,80 @@
     const gd=e.target.closest("[data-goal-delete]");if(gd){deleteGoal(gd.dataset.goalDelete);return}
   });
   $("menuBtn").onclick=()=>$("sidebar").classList.toggle("open");
-
-  document.querySelectorAll(".segment button").forEach(b=>b.onclick=()=>{
-    movementType=b.dataset.type;
-    document.querySelectorAll(".segment button").forEach(x=>x.classList.remove("active","income","expense"));
-    b.classList.add("active",movementType);
-  });
+ 
+  /* ---------- Tema ---------- */
+  function applyTheme(t){
+    document.documentElement.dataset.theme=t;
+    $("themeBtn").innerHTML = ic(t==="dark"?"sun":"moon");
+    $("themeColor").content = t==="dark" ? "#0b0c0f" : "#f5f6f8";
+  }
+  $("themeBtn").onclick=()=>{
+    const t=document.documentElement.dataset.theme==="dark"?"light":"dark";
+    try{localStorage.setItem(THEME_KEY,t)}catch(e){}
+    applyTheme(t);
+  };
+ 
+  /* ---------- Movimientos ---------- */
+  function setType(t){
+    movementType=t;
+    document.querySelectorAll(".segment button").forEach(b=>{
+      b.classList.remove("active","income","expense","card");
+      if(b.dataset.type===t) b.classList.add("active",t);
+    });
+    updateCardHint();
+  }
+  function updateCardHint(){
+    const hint=$("cardHint");
+    if(movementType!=="card"){hint.hidden=true;return}
+    const base = editingMovement ? new Date(data.movements.find(m=>m.id===editingMovement)?.createdAt||Date.now()) : new Date();
+    const due = new Date(base.getFullYear(), base.getMonth()+1, payDay());
+    hint.textContent = `Se cobrará el ${dateOnly(due)}. No afecta tu saldo ni tus gastos hasta esa fecha.`;
+    hint.hidden=false;
+  }
+  document.querySelectorAll(".segment button").forEach(b=>b.onclick=()=>setType(b.dataset.type));
+ 
   $("movementForm").onsubmit=e=>{
     e.preventDefault();
     if(!data.categories.length){toast("Primero crea una categoría.");navigate("categories");return}
     const amount=Number($("amount").value);if(amount<=0)return;
-    const obj={id:editingMovement||crypto.randomUUID(),type:movementType,amount,categoryId:$("category").value,description:$("description").value.trim(),createdAt:editingMovement?data.movements.find(m=>m.id===editingMovement).createdAt:new Date().toISOString()};
+    const createdAt = editingMovement ? data.movements.find(m=>m.id===editingMovement).createdAt : new Date().toISOString();
+    const obj={id:editingMovement||crypto.randomUUID(),type:movementType,amount,categoryId:$("category").value,description:$("description").value.trim(),createdAt};
+    const isCard = movementType==="card";
     if(editingMovement){data.movements=data.movements.map(m=>m.id===editingMovement?obj:m);toast("Movimiento actualizado.");}
-    else{data.movements.push(obj);toast("Movimiento guardado.");}
-    editingMovement=null;resetMovementForm();renderAll();navigate("dashboard");
+    else{data.movements.push(obj);toast(isCard?`Compra guardada. Se cobrará el ${dateOnly(dueDate(obj))}.`:"Movimiento guardado.");}
+    editingMovement=null;resetMovementForm();renderAll();navigate(isCard?"card":"dashboard");
   };
-  function resetMovementForm(){$("movementForm").reset();movementType="income";document.querySelectorAll(".segment button").forEach((b,i)=>{b.classList.toggle("active",i===0);b.classList.toggle("income",i===0);b.classList.toggle("expense",i===1)});$("movementTitle").textContent="Registrar movimiento";$("cancelEdit").style.display="none"}
+  function resetMovementForm(){
+    $("movementForm").reset();setType("income");
+    $("movementTitle").textContent="Registrar movimiento";$("cancelEdit").style.display="none";
+  }
   $("cancelEdit").onclick=()=>{editingMovement=null;resetMovementForm();navigate("add")};
   function editMovement(id){
     const m=data.movements.find(x=>x.id===id);if(!m)return;
-    editingMovement=id;movementType=m.type;$("amount").value=m.amount;$("category").value=m.categoryId;$("description").value=m.description||"";
-    document.querySelectorAll(".segment button").forEach(b=>{b.classList.toggle("active",b.dataset.type===m.type);b.classList.toggle("income",b.dataset.type==="income"&&m.type==="income");b.classList.toggle("expense",b.dataset.type==="expense"&&m.type==="expense")});
+    editingMovement=id;$("amount").value=m.amount;$("category").value=m.categoryId;$("description").value=m.description||"";
+    setType(m.type);
     $("movementTitle").textContent="Editar movimiento";$("cancelEdit").style.display="inline-block";navigate("add");
   }
   function deleteMovement(id){if(!confirm("¿Eliminar este movimiento?"))return;data.movements=data.movements.filter(m=>m.id!==id);renderAll();toast("Movimiento eliminado.");}
   $("search").oninput=renderHistory;$("filterType").onchange=renderHistory;$("filterCategory").onchange=renderHistory;$("filterFrom").onchange=renderHistory;$("filterTo").onchange=renderHistory;
-
+  $("monthPick").onchange=renderDashboard;
+ 
+  /* ---------- Tarjeta (configuración) ---------- */
+  $("cardForm").onsubmit=e=>{
+    e.preventDefault();
+    data.settings={
+      cardName:$("cardName").value.trim()||defaultSettings.cardName,
+      payDay:Math.min(5,Math.max(2,Number($("payDay").value)||5)),
+      limit:Math.max(0,Number($("cardLimit").value)||0)
+    };
+    renderAll();toast("Tarjeta actualizada.");
+  };
+ 
+  /* ---------- Categorías ---------- */
   $("categoryForm").onsubmit=e=>{
     e.preventDefault();const name=$("catName").value.trim();
     if(data.categories.some(c=>c.name.toLowerCase()===name.toLowerCase())){toast("Esa categoría ya existe.");return}
-    data.categories.push({id:crypto.randomUUID(),name,color:$("catColor").value});e.target.reset();$("catColor").value="#64e6c3";renderAll();toast("Categoría creada.");
+    data.categories.push({id:crypto.randomUUID(),name,color:$("catColor").value});e.target.reset();renderAll();toast("Categoría creada.");
   };
   function openCategoryEdit(id){
     const c=category(id);if(!c)return;editingCategory=id;$("editCatName").value=c.name;$("editCatColor").value=c.color;$("modal").classList.add("show");
@@ -170,7 +332,8 @@
     if(data.movements.some(m=>m.categoryId===id)||data.goals.some(g=>g.categoryId===id)){toast("No puedes eliminar una categoría que está en uso.");return}
     if(!confirm("¿Eliminar esta categoría?"))return;data.categories=data.categories.filter(c=>c.id!==id);renderAll();toast("Categoría eliminada.");
   }
-
+ 
+  /* ---------- Objetivos ---------- */
   $("goalForm").onsubmit=e=>{
     e.preventDefault();const obj={id:editingGoal||crypto.randomUUID(),name:$("goalName").value.trim(),target:Number($("goalTarget").value),categoryId:$("goalCategory").value,deadline:$("goalDate").value||""};
     if(obj.target<=0)return;
@@ -182,11 +345,17 @@
   $("cancelGoal").onclick=()=>{editingGoal=null;resetGoalForm()};
   function editGoal(id){const g=data.goals.find(x=>x.id===id);if(!g)return;editingGoal=id;$("goalName").value=g.name;$("goalTarget").value=g.target;$("goalCategory").value=g.categoryId;$("goalDate").value=g.deadline||"";$("goalFormTitle").textContent="Editar objetivo";$("cancelGoal").style.display="inline-block";navigate("goals");}
   function deleteGoal(id){if(!confirm("¿Eliminar este objetivo?"))return;data.goals=data.goals.filter(g=>g.id!==id);renderAll();toast("Objetivo eliminado.");}
-
+ 
+  /* ---------- Reset ---------- */
   $("resetBtn").onclick=()=>{
-    if(confirm("Esto eliminará todas las categorías, movimientos y objetivos guardados en este navegador. ¿Continuar?")){
+    if(confirm("Esto eliminará todas las categorías, movimientos, objetivos y la configuración de tarjeta guardados en este navegador. ¿Continuar?")){
       localStorage.removeItem(KEY);data=load();renderAll();toast("Datos restablecidos.");
     }
   };
+ 
+  /* ---------- Inicio ---------- */
+  $("monthPick").value = monthOf(new Date());
+  applyTheme(document.documentElement.dataset.theme||"light");
   renderAll();resetMovementForm();$("cancelEdit").style.display="none";$("cancelGoal").style.display="none";
 })();
+ 

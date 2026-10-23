@@ -3,147 +3,242 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#07111f">
-<title>Finova — Finanzas Personales</title>
+<meta name="theme-color" content="#0b0c0f" id="themeColor">
+<title>Finova — Finanzas personales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<script>try{var t=localStorage.getItem("finova_theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8z"/><path d="M7.5 7.5h.01"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="i-in" viewBox="0 0 24 24"><path d="M17 7L7 17M7 8v9h9"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/></symbol>
+  </defs>
+</svg>
+
 <div class="app">
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><div class="logo">F</div><strong>FINOVA</strong></div>
+    <div class="brand"><span class="logo">F</span><strong>Finova</strong></div>
     <nav class="nav">
-      <button class="active" data-page="dashboard"><span class="icon">⌂</span>Resumen</button>
-      <button data-page="add"><span class="icon">＋</span>Movimiento</button>
-      <button data-page="history"><span class="icon">↕</span>Historial</button>
-      <button data-page="categories"><span class="icon">◈</span>Categorías</button>
-      <button data-page="goals"><span class="icon">◎</span>Objetivos</button>
+      <button class="active" data-page="dashboard"><svg class="ic"><use href="#i-home"/></svg>Resumen</button>
+      <button data-page="add"><svg class="ic"><use href="#i-plus"/></svg>Movimiento</button>
+      <button data-page="history"><svg class="ic"><use href="#i-list"/></svg>Historial</button>
+      <button data-page="card"><svg class="ic"><use href="#i-card"/></svg>Tarjeta</button>
+      <button data-page="categories"><svg class="ic"><use href="#i-tag"/></svg>Categorías</button>
+      <button data-page="goals"><svg class="ic"><use href="#i-target"/></svg>Objetivos</button>
     </nav>
-    <div class="sidebar-footer">Datos locales · Sin servidores</div>
+    <div class="sidebar-footer">Tus datos se guardan solo en este navegador.</div>
   </aside>
 
   <main class="main">
-    <header class="topbar">
-      <div style="display:flex;align-items:center;gap:12px">
-        <button class="mobile-menu" id="menuBtn">☰</button>
-        <div><h1 id="pageTitle">Resumen financiero</h1><p id="pageSubtitle">Tu dinero, de un vistazo.</p></div>
-      </div>
-      <button class="btn" id="resetBtn" title="Borrar todos los datos">Restablecer</button>
-    </header>
-
-    <section class="page active" id="page-dashboard">
-      <div class="grid stats">
-        <div class="card stat"><span class="stat-label">Saldo disponible</span><div class="stat-value balance" id="statBalance">$0</div></div>
-        <div class="card stat"><span class="stat-label">Ingresos</span><div class="stat-value income" id="statIncome">$0</div></div>
-        <div class="card stat"><span class="stat-label">Gastos</span><div class="stat-value expense" id="statExpense">$0</div></div>
-        <div class="card stat"><span class="stat-label">Movimientos</span><div class="stat-value" id="statCount">0</div></div>
-      </div>
-      <div class="grid content-grid">
-        <div class="card">
-          <div class="card-head"><h2>Actividad reciente</h2><button class="btn ghost" data-page="history">Ver todo</button></div>
-          <div class="movements" id="recentMovements"></div>
+    <div class="content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <button class="icon-btn mobile-menu" id="menuBtn" aria-label="Abrir menú"><svg class="ic"><use href="#i-menu"/></svg></button>
+          <div><h1 id="pageTitle">Resumen</h1><p id="pageSubtitle">Tu dinero, de un vistazo.</p></div>
         </div>
-        <div class="card">
-          <div class="card-head"><h2>Objetivos</h2><button class="btn ghost" data-page="goals">Gestionar</button></div>
-          <div id="dashboardGoals"></div>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="themeBtn" aria-label="Cambiar tema"><svg class="ic"><use href="#i-moon"/></svg></button>
+          <button class="icon-btn" id="resetBtn" aria-label="Borrar todos los datos" title="Borrar todos los datos"><svg class="ic"><use href="#i-reset"/></svg></button>
         </div>
-      </div>
-    </section>
+      </header>
 
-    <section class="page" id="page-add">
-      <div class="card">
-        <div class="card-head"><div><h2 id="movementTitle">Registrar movimiento</h2><span class="small">Los campos con categoría son obligatorios.</span></div></div>
-        <form id="movementForm">
-          <div class="field full" style="margin-bottom:14px">
-            <label>Tipo</label>
-            <div class="segment"><button type="button" class="active income" data-type="income">Ingreso</button><button type="button" data-type="expense">Gasto</button></div>
+      <!-- RESUMEN -->
+      <section class="page active" id="page-dashboard">
+        <div class="hero">
+          <div>
+            <span class="label">Saldo disponible</span>
+            <div class="hero-value" id="statBalance">$0</div>
+            <span class="small" id="statCount">0 movimientos</span>
           </div>
-          <div class="form-grid">
-            <div class="field"><label for="amount">Monto *</label><input id="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required></div>
-            <div class="field"><label for="category">Categoría *</label><select id="category" required></select></div>
-            <div class="field full"><label for="description">Descripción / nota</label><textarea id="description" maxlength="250" placeholder="Ej. Compra del supermercado"></textarea></div>
+          <div class="month-pick">
+            <label for="monthPick">Mes</label>
+            <input id="monthPick" type="month">
           </div>
-          <div class="actions"><button type="button" class="btn" id="cancelEdit">Cancelar</button><button class="btn primary" type="submit">Guardar movimiento</button></div>
-        </form>
-      </div>
-      <div class="card" style="margin-top:18px">
-        <div class="card-head"><h3>Consejo</h3></div>
-        <div class="small">Registra cada movimiento en su categoría correspondiente para que tus objetivos puedan calcular su progreso automáticamente.</div>
-      </div>
-    </section>
-
-    <section class="page" id="page-history">
-      <div class="card">
-        <div class="card-head"><div><h2>Historial de movimientos</h2><span class="small" id="historyCount">0 resultados</span></div></div>
-        <div class="filters">
-          <input id="search" placeholder="Buscar descripción o categoría...">
-          <select id="filterType"><option value="">Todos los tipos</option><option value="income">Ingresos</option><option value="expense">Gastos</option></select>
-          <select id="filterCategory"><option value="">Todas las categorías</option></select>
-          <input id="filterFrom" type="date" title="Desde">
-          <input id="filterTo" type="date" title="Hasta">
         </div>
-        <div class="table-wrap">
-          <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th></th></tr></thead>
-          <tbody id="historyBody"></tbody></table>
-        </div>
-      </div>
-    </section>
 
-    <section class="page" id="page-categories">
-      <div class="grid content-grid">
-        <div class="card">
-          <div class="card-head"><h2>Nueva categoría</h2></div>
-          <form id="categoryForm">
-            <div class="form-grid">
-              <div class="field"><label for="catName">Nombre *</label><input id="catName" maxlength="40" required placeholder="Ej. Alimentación"></div>
-              <div class="field"><label for="catColor">Color</label><input id="catColor" type="color" value="#64e6c3" style="height:44px;padding:5px"></div>
+        <div class="metrics">
+          <div class="metric"><span class="label">Ingresos del mes</span><div class="metric-value income" id="statIncome">$0</div></div>
+          <div class="metric"><span class="label">Gastos del mes</span><div class="metric-value" id="statExpense">$0</div><span class="small" id="statExpenseNote"></span></div>
+          <div class="metric"><span class="label">Tarjeta por pagar</span><div class="metric-value card-color" id="statCard">$0</div><span class="small" id="statCardNote"></span></div>
+        </div>
+
+        <div class="grid content-grid">
+          <div class="panel">
+            <div class="panel-head"><h2>Actividad reciente</h2><button class="btn ghost sm" data-page="history">Ver todo</button></div>
+            <div id="recentMovements"></div>
+          </div>
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><h2>Gastos por categoría</h2></div>
+              <div id="spendByCategory"></div>
             </div>
-            <div class="actions"><button class="btn primary">Crear categoría</button></div>
+            <div class="panel">
+              <div class="panel-head"><h2>Objetivos</h2><button class="btn ghost sm" data-page="goals">Gestionar</button></div>
+              <div id="dashboardGoals"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MOVIMIENTO -->
+      <section class="page" id="page-add">
+        <div class="panel narrow">
+          <div class="panel-head"><h2 id="movementTitle">Registrar movimiento</h2></div>
+          <form id="movementForm">
+            <div class="field" style="margin-bottom:18px">
+              <label>Tipo</label>
+              <div class="segment" role="group" aria-label="Tipo de movimiento">
+                <button type="button" class="active income" data-type="income">Ingreso</button>
+                <button type="button" data-type="expense">Gasto</button>
+                <button type="button" data-type="card">Tarjeta</button>
+              </div>
+              <p class="hint" id="cardHint" hidden></p>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label for="amount">Monto *</label><input id="amount" type="number" min="0.01" step="0.01" placeholder="0" required></div>
+              <div class="field"><label for="category">Categoría *</label><select id="category" required></select></div>
+              <div class="field full"><label for="description">Descripción</label><textarea id="description" maxlength="250" placeholder="Ej. Compra del supermercado"></textarea></div>
+            </div>
+            <div class="actions"><button type="button" class="btn" id="cancelEdit">Cancelar</button><button class="btn primary" type="submit">Guardar movimiento</button></div>
           </form>
         </div>
-        <div class="card">
-          <div class="card-head"><h2>Tus categorías</h2><span class="small" id="categoryCount">0</span></div>
-          <div class="category-list" id="categoryList"></div>
-          <div class="notice">No puedes eliminar una categoría que esté siendo usada por movimientos u objetivos.</div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="page" id="page-goals">
-      <div class="card goal-form">
-        <div class="card-head"><div><h2 id="goalFormTitle">Crear objetivo</h2><span class="small">El progreso se calcula usando movimientos de la categoría seleccionada.</span></div></div>
-        <form id="goalForm">
-          <div class="form-grid">
-            <div class="field"><label for="goalName">Nombre del objetivo *</label><input id="goalName" maxlength="60" required placeholder="Ej. Ahorrar para enero"></div>
-            <div class="field"><label for="goalTarget">Monto objetivo *</label><input id="goalTarget" type="number" min="0.01" step="0.01" required placeholder="500"></div>
-            <div class="field"><label for="goalCategory">Categoría *</label><select id="goalCategory" required></select></div>
-            <div class="field"><label for="goalDate">Fecha límite (opcional)</label><input id="goalDate" type="date"></div>
+      <!-- HISTORIAL -->
+      <section class="page" id="page-history">
+        <div class="panel">
+          <div class="panel-head"><div><h2>Historial de movimientos</h2><span class="small" id="historyCount">0 resultados</span></div></div>
+          <div class="filters">
+            <input id="search" placeholder="Buscar descripción o categoría">
+            <select id="filterType"><option value="">Todos los tipos</option><option value="income">Ingresos</option><option value="expense">Gastos</option><option value="card">Tarjeta</option></select>
+            <select id="filterCategory"><option value="">Todas las categorías</option></select>
+            <input id="filterFrom" type="date" title="Desde">
+            <input id="filterTo" type="date" title="Hasta">
           </div>
-          <div class="actions"><button type="button" class="btn" id="cancelGoal">Cancelar</button><button class="btn primary">Guardar objetivo</button></div>
-        </form>
-      </div>
-      <div class="grid goal-grid" id="goalList"></div>
-    </section>
+          <div class="table-wrap">
+            <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th class="right">Monto</th><th></th></tr></thead>
+            <tbody id="historyBody"></tbody></table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TARJETA -->
+      <section class="page" id="page-card">
+        <div class="card-layout">
+          <div class="card-side">
+            <div class="credit-card">
+              <div class="cc-top"><span id="ccName">Tarjeta de crédito</span><span class="chip"></span></div>
+              <div>
+                <span class="cc-label">Por pagar</span>
+                <div class="cc-amount" id="ccPending">$0</div>
+              </div>
+              <div class="cc-bottom">
+                <span id="ccNext">Sin pagos pendientes</span>
+                <div class="cc-usage" id="ccUsage" hidden><div class="cc-bar"><span id="ccBar"></span></div><span id="ccUsageText"></span></div>
+              </div>
+            </div>
+            <button class="btn primary" data-new-card>Agregar compra con tarjeta</button>
+            <p class="small">Las compras con tarjeta no se descuentan de tu saldo ni suman a los gastos del mes en que las haces. Se cobran el día de pago del mes siguiente.</p>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Configuración</h2></div>
+            <form id="cardForm">
+              <div class="form-grid">
+                <div class="field full"><label for="cardName">Nombre de la tarjeta</label><input id="cardName" maxlength="30" placeholder="Tarjeta de crédito"></div>
+                <div class="field"><label for="payDay">Día de pago (2 al 5)</label>
+                  <select id="payDay"><option value="2">Día 2</option><option value="3">Día 3</option><option value="4">Día 4</option><option value="5">Día 5</option></select>
+                </div>
+                <div class="field"><label for="cardLimit">Cupo (opcional)</label><input id="cardLimit" type="number" min="0" step="1" placeholder="0"></div>
+              </div>
+              <div class="actions"><button class="btn primary" type="submit">Guardar</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:20px">
+          <div class="panel-head"><h2>Pagos de la tarjeta</h2></div>
+          <div id="statements"></div>
+        </div>
+      </section>
+
+      <!-- CATEGORÍAS -->
+      <section class="page" id="page-categories">
+        <div class="grid content-grid">
+          <div class="panel">
+            <div class="panel-head"><h2>Tus categorías</h2><span class="small" id="categoryCount">0</span></div>
+            <div id="categoryList"></div>
+            <div class="notice">No puedes eliminar una categoría que esté en uso por movimientos u objetivos.</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Nueva categoría</h2></div>
+            <form id="categoryForm">
+              <div class="form-grid one">
+                <div class="field"><label for="catName">Nombre *</label><input id="catName" maxlength="40" required placeholder="Ej. Alimentación"></div>
+                <div class="field"><label for="catColor">Color</label><input id="catColor" type="color" value="#2f3fd6" class="color-input"></div>
+              </div>
+              <div class="actions"><button class="btn primary">Crear categoría</button></div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- OBJETIVOS -->
+      <section class="page" id="page-goals">
+        <div class="panel goal-form">
+          <div class="panel-head"><div><h2 id="goalFormTitle">Crear objetivo</h2><span class="small">El progreso se calcula con los ingresos de la categoría elegida.</span></div></div>
+          <form id="goalForm">
+            <div class="form-grid">
+              <div class="field"><label for="goalName">Nombre *</label><input id="goalName" maxlength="60" required placeholder="Ej. Ahorrar para enero"></div>
+              <div class="field"><label for="goalTarget">Monto objetivo *</label><input id="goalTarget" type="number" min="0.01" step="0.01" required placeholder="500000"></div>
+              <div class="field"><label for="goalCategory">Categoría *</label><select id="goalCategory" required></select></div>
+              <div class="field"><label for="goalDate">Fecha límite (opcional)</label><input id="goalDate" type="date"></div>
+            </div>
+            <div class="actions"><button type="button" class="btn" id="cancelGoal">Cancelar</button><button class="btn primary">Guardar objetivo</button></div>
+          </form>
+        </div>
+        <div class="grid goal-grid" id="goalList"></div>
+      </section>
+    </div>
   </main>
 </div>
 
 <nav class="bottom-nav" id="bottomNav">
-  <button class="active" data-page="dashboard">⌂<span>Inicio</span></button>
-  <button data-page="add">＋<span>Agregar</span></button>
-  <button data-page="history">↕<span>Historial</span></button>
-  <button data-page="goals">◎<span>Metas</span></button>
+  <button class="active" data-page="dashboard"><svg class="ic"><use href="#i-home"/></svg><span>Inicio</span></button>
+  <button data-page="add"><svg class="ic"><use href="#i-plus"/></svg><span>Agregar</span></button>
+  <button data-page="history"><svg class="ic"><use href="#i-list"/></svg><span>Historial</span></button>
+  <button data-page="card"><svg class="ic"><use href="#i-card"/></svg><span>Tarjeta</span></button>
+  <button data-page="goals"><svg class="ic"><use href="#i-target"/></svg><span>Metas</span></button>
 </nav>
 
 <div class="modal-backdrop" id="modal">
   <div class="modal">
-    <h2 id="modalTitle">Editar</h2>
+    <h2>Editar categoría</h2>
     <form id="editCategoryForm">
-      <div class="field"><label for="editCatName">Nombre</label><input id="editCatName" required maxlength="40"></div>
-      <div class="field" style="margin-top:12px"><label for="editCatColor">Color</label><input id="editCatColor" type="color" style="height:44px;padding:5px"></div>
+      <div class="form-grid one">
+        <div class="field"><label for="editCatName">Nombre</label><input id="editCatName" required maxlength="40"></div>
+        <div class="field"><label for="editCatColor">Color</label><input id="editCatColor" type="color" class="color-input"></div>
+      </div>
       <div class="actions"><button type="button" class="btn" id="closeModal">Cancelar</button><button class="btn primary">Guardar</button></div>
     </form>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status"></div>
 
 <script src="scripts.js"></script>
 </body>
