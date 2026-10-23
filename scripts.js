@@ -1,4 +1,3 @@
-
 (() => {
   const KEY = "finova_data_v1";
   const THEME_KEY = "finova_theme";
@@ -10,7 +9,7 @@
     {id:crypto.randomUUID(), name:"Entretenimiento", color:"#e0a526"},
     {id:crypto.randomUUID(), name:"Salario", color:"#2aa7c9"}
   ];
-  const defaultSettings = {cardName:"Tarjeta de crédito", payDay:5, limit:0};
+  const defaultSettings = {cardName:"Tarjeta de crédito", payDay:5, limit:0, weeklyMax:0, weeklyIdeal:0};
  
   let data = load();
   let movementType = "income";
@@ -37,7 +36,7 @@
         return saved;
       }
     }catch(e){}
-    return {categories:defaultCategories, movements:[], goals:[], settings:{...defaultSettings}};
+    return {categories:defaultCategories.map(c=>({...c})), movements:[], goals:[], settings:{...defaultSettings}};
   }
   function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
   function toast(msg){
@@ -70,7 +69,7 @@
  
   /* ---------- Render ---------- */
   function renderAll(){
-    renderCategories(); renderSelects(); renderDashboard(); renderHistory(); renderGoals(); renderCard(); updateCardHint(); save();
+    renderCategories(); renderSelects(); renderDashboard(); renderHistory(); renderGoals(); renderCard(); renderCalendar(); updateCardHint(); save();
   }
   function renderSelects(){
     const opts = data.categories.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
@@ -217,11 +216,99 @@
     $("statements").innerHTML = keys.length ? [...upcoming,...past].map(html).join("") : '<div class="empty">Aún no registras compras con tarjeta.</div>';
   }
  
+  /* ---------- Calendario y meta semanal ---------- */
+  const pad = n => String(n).padStart(2,"0");
+  const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const addDays = (d,n) => new Date(d.getFullYear(), d.getMonth(), d.getDate()+n);
+  const startOfWeek = d => addDays(d, -((d.getDay()+6)%7)); // semana de lunes a domingo
+  const compact = n => "$"+new Intl.NumberFormat("es-CO",{notation:"compact",maximumFractionDigits:1}).format(n);
+  const shortDate = d => new Intl.DateTimeFormat("es-CO",{day:"numeric",month:"short"}).format(d);
+  let calMonth = new Date(); calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+  let selectedDay = dayKey(new Date());
+  // Un gasto cuenta el día en que ocurre; una compra con tarjeta, el día en que se cobra
+  const spendDate = m => m.type==="card" ? dueDate(m) : new Date(m.createdAt);
+ 
+  function spendByDay(){
+    const map = {}, nowD = new Date();
+    data.movements.filter(m=>m.type!=="income").forEach(m=>{
+      const k = dayKey(spendDate(m));
+      const e = map[k] = map[k] || {total:0, list:[], future:false};
+      e.total += m.amount; e.list.push(m);
+      if(spendDate(m) > nowD) e.future = true;
+    });
+    return map;
+  }
+  function weekTotals(start, map){
+    let total = 0, scheduled = 0; const nowD = new Date();
+    for(let i=0;i<7;i++){
+      const e = map[dayKey(addDays(start,i))];
+      if(e){ total += e.total; e.list.forEach(m=>{ if(spendDate(m) > nowD) scheduled += m.amount; }); }
+    }
+    return {total, scheduled};
+  }
+  function weekBar(total){
+    const max = Number(data.settings.weeklyMax)||0, ideal = Number(data.settings.weeklyIdeal)||0;
+    if(!max) return "";
+    const state = total>max ? "over" : (ideal>0 && total>ideal) ? "warn" : "ok";
+    const mark = ideal>0 && ideal<max ? `<i class="mark" style="left:${ideal/max*100}%"></i>` : "";
+    return `<div class="wbar ${state}"><span style="width:${Math.min(100,total/max*100)}%"></span>${mark}</div>`;
+  }
+ 
+  function renderCalendar(){
+    const map = spendByDay(), today = new Date(), todayKey = dayKey(today);
+    const max = Number(data.settings.weeklyMax)||0, ideal = Number(data.settings.weeklyIdeal)||0;
+    $("weeklyMax").value = max || ""; $("weeklyIdeal").value = ideal || "";
+ 
+    // Semana actual
+    const ws = startOfWeek(today), wt = weekTotals(ws, map), left = max - wt.total;
+    $("weekRange").textContent = `${shortDate(ws)} – ${shortDate(addDays(ws,6))}`;
+    $("weekSpent").textContent = money(wt.total);
+    $("weekBar").innerHTML = weekBar(wt.total);
+    let status = "Define un máximo semanal para medir tu progreso.";
+    if(max){
+      const daysLeft = 7 - ((today.getDay()+6)%7);
+      if(wt.total > max) status = `Superaste tu máximo por ${money(wt.total-max)}.`;
+      else if(ideal>0 && wt.total>ideal) status = `Pasaste tu ideal, pero sigues dentro del máximo. Te quedan ${money(left)}.`;
+      else status = `Vas dentro de tu meta. Te quedan ${money(left)}, unos ${money(left/daysLeft)} por día.`;
+    }
+    $("weekStatus").textContent = status;
+    $("weekIdeal").textContent = ideal ? money(ideal) : "—";
+    $("weekMax").textContent = max ? money(max) : "—";
+    $("weekLeft").textContent = max ? money(Math.max(0,left)) : "—";
+    $("weekNote").textContent = wt.scheduled>0 ? `Incluye ${money(wt.scheduled)} de tarjeta que se cobra esta semana.` : "";
+ 
+    // Calendario del mes
+    $("calLabel").textContent = new Intl.DateTimeFormat("es-CO",{month:"long",year:"numeric"}).format(calMonth);
+    const last = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0);
+    let html = "", cur = startOfWeek(calMonth);
+    while(cur <= last){
+      const t = weekTotals(cur, map); let cells = "";
+      for(let i=0;i<7;i++){
+        const d = addDays(cur,i), k = dayKey(d), e = map[k], cls = ["cal-day"];
+        if(d.getMonth()!==calMonth.getMonth()) cls.push("out");
+        if(k===todayKey) cls.push("today");
+        if(k===selectedDay) cls.push("sel");
+        cells += `<button type="button" class="${cls.join(" ")}" data-day="${k}"><span class="d">${d.getDate()}</span>${e?`<span class="v${e.future?" future":""}">${compact(e.total)}</span>`:""}</button>`;
+      }
+      html += `<div class="cal-week"><div class="cal-days">${cells}</div>
+        <div class="cal-sum"><span>${shortDate(cur)} – ${shortDate(addDays(cur,6))}</span><strong>${money(t.total)}${max?` <em>de ${money(max)}</em>`:""}</strong></div>${weekBar(t.total)}</div>`;
+      cur = addDays(cur,7);
+    }
+    $("calWeeks").innerHTML = html;
+ 
+    // Detalle del día seleccionado
+    const [y,mo,da] = selectedDay.split("-").map(Number), e = map[selectedDay];
+    $("dayTitle").textContent = new Intl.DateTimeFormat("es-CO",{weekday:"long",day:"numeric",month:"long"}).format(new Date(y,mo-1,da));
+    $("dayTotal").textContent = e ? `Gastos del día: ${money(e.total)}` : "Sin gastos";
+    $("dayList").innerHTML = e ? [...e.list].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(movementHTML).join("") : '<div class="empty">No hay gastos registrados este día.</div>';
+  }
+ 
   /* ---------- Navegación ---------- */
   const titles={
     dashboard:["Resumen","Tu dinero, de un vistazo."],
     add:["Movimiento","Registra un ingreso, gasto o compra con tarjeta."],
     history:["Historial","Encuentra cualquier movimiento rápidamente."],
+    calendar:["Calendario","Tu gasto semanal frente a tu meta."],
     card:["Tarjeta","Tus compras a crédito y sus fechas de pago."],
     categories:["Categorías","Organiza tus ingresos y gastos."],
     goals:["Objetivos","Convierte tus planes en progreso."]
@@ -234,6 +321,10 @@
   }
   document.addEventListener("click",e=>{
     const nav=e.target.closest("[data-page]"); if(nav){navigate(nav.dataset.page);return}
+    const dd=e.target.closest("[data-day]");if(dd){selectedDay=dd.dataset.day;renderCalendar();return}
+    if(e.target.closest("[data-cal-prev]")){calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderCalendar();return}
+    if(e.target.closest("[data-cal-next]")){calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderCalendar();return}
+    if(e.target.closest("[data-cal-today]")){const t=new Date();calMonth=new Date(t.getFullYear(),t.getMonth(),1);selectedDay=dayKey(t);renderCalendar();return}
     if(e.target.closest("[data-new-card]")){editingMovement=null;resetMovementForm();setType("card");navigate("add");return}
     const edit=e.target.closest("[data-edit]");if(edit){editMovement(edit.dataset.edit);return}
     const del=e.target.closest("[data-delete]");if(del){deleteMovement(del.dataset.delete);return}
@@ -305,11 +396,22 @@
   $("cardForm").onsubmit=e=>{
     e.preventDefault();
     data.settings={
+      ...data.settings,
       cardName:$("cardName").value.trim()||defaultSettings.cardName,
       payDay:Math.min(5,Math.max(2,Number($("payDay").value)||5)),
       limit:Math.max(0,Number($("cardLimit").value)||0)
     };
     renderAll();toast("Tarjeta actualizada.");
+  };
+ 
+  /* ---------- Meta semanal (configuración) ---------- */
+  $("weekGoalForm").onsubmit=e=>{
+    e.preventDefault();
+    const mx=Math.max(0,Number($("weeklyMax").value)||0), id=Math.max(0,Number($("weeklyIdeal").value)||0);
+    if(id>0 && mx===0){toast("Define primero el máximo semanal.");return}
+    if(mx>0 && id>mx){toast("El ideal no puede ser mayor que el máximo.");return}
+    data.settings={...data.settings,weeklyMax:mx,weeklyIdeal:id};
+    renderAll();toast("Meta semanal guardada.");
   };
  
   /* ---------- Categorías ---------- */
