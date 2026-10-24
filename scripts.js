@@ -10,13 +10,13 @@
     {id:crypto.randomUUID(), name:"Salario", color:"#2aa7c9"}
   ];
   const defaultSettings = {cardName:"Tarjeta de crédito", payDay:5, limit:0, weeklyMax:0, weeklyIdeal:0};
- 
+
   let data = load();
   let movementType = "income";
   let editingMovement = null;
   let editingCategory = null;
   let editingGoal = null;
- 
+
   const $ = id => document.getElementById(id);
   const money = n => new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(Number(n)||0);
   const dateTime = d => new Intl.DateTimeFormat("es-CO",{dateStyle:"medium",timeStyle:"short"}).format(new Date(d));
@@ -26,17 +26,18 @@
   const ic = name => `<svg class="ic"><use href="#i-${name}"/></svg>`;
   const sum = list => list.reduce((s,m)=>s+m.amount,0);
   const monthOf = d => { d=new Date(d); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
- 
+
   /* ---------- Datos ---------- */
   function load(){
     try{
       const saved = JSON.parse(localStorage.getItem(KEY));
       if(saved && saved.categories && saved.movements && saved.goals){
         saved.settings = {...defaultSettings, ...(saved.settings||{})};
+        saved.weekGoals = saved.weekGoals || {};
         return saved;
       }
     }catch(e){}
-    return {categories:defaultCategories.map(c=>({...c})), movements:[], goals:[], settings:{...defaultSettings}};
+    return {categories:defaultCategories.map(c=>({...c})), movements:[], goals:[], settings:{...defaultSettings}, weekGoals:{}};
   }
   function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
   function toast(msg){
@@ -44,7 +45,7 @@
     clearTimeout(window.__toast); window.__toast = setTimeout(()=>$("toast").classList.remove("show"), 2600);
   }
   const category = id => data.categories.find(c=>c.id===id);
- 
+
   /* ---------- Lógica de tarjeta ----------
      Una compra con tarjeta (type "card") no cuenta en el mes en que se hace:
      se cobra el día de pago (2 a 5) del mes siguiente. */
@@ -55,7 +56,7 @@
   const affectsBalance = m => m.type==="card" ? dueDate(m) <= new Date() : true;
   // Mes al que pertenece el movimiento para los totales mensuales
   const monthOfMovement = m => monthOf(m.type==="card" ? dueDate(m) : m.createdAt);
- 
+
   function cardStats(){
     const pending = data.movements.filter(isPending);
     const total = sum(pending);
@@ -66,7 +67,7 @@
     }
     return {total, next, nextAmount, count:pending.length};
   }
- 
+
   /* ---------- Render ---------- */
   function renderAll(){
     renderCategories(); renderSelects(); renderDashboard(); renderHistory(); renderGoals(); renderCard(); renderCalendar(); updateCardHint(); save();
@@ -82,7 +83,7 @@
     if([...$("goalCategory").options].some(o=>o.value===currentGoal)) $("goalCategory").value=currentGoal;
     $("filterCategory").value = currentFilter;
   }
- 
+
   function renderDashboard(){
     const key = $("monthPick").value || monthOf(new Date());
     const balance = sum(data.movements.filter(m=>m.type==="income")) - sum(data.movements.filter(m=>m.type!=="income" && affectsBalance(m)));
@@ -91,7 +92,7 @@
     const monthCard = sum(inMonth.filter(m=>m.type==="card"));
     const expense = sum(inMonth.filter(m=>m.type==="expense")) + monthCard;
     const cs = cardStats();
- 
+
     $("statBalance").textContent = money(balance);
     $("statCount").textContent = `${data.movements.length} movimiento${data.movements.length===1?"":"s"}`;
     $("statIncome").textContent = money(income);
@@ -99,10 +100,10 @@
     $("statExpenseNote").textContent = monthCard>0 ? `Incluye ${money(monthCard)} de tarjeta` : "";
     $("statCard").textContent = money(cs.total);
     $("statCardNote").textContent = cs.next ? `Próximo pago el ${longDate(cs.next)}` : "Sin pagos pendientes";
- 
+
     const recent = [...data.movements].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
     $("recentMovements").innerHTML = recent.length ? recent.map(movementHTML).join("") : '<div class="empty">Aún no hay movimientos. Registra tu primer ingreso o gasto.</div>';
- 
+
     // Gastos por categoría del mes seleccionado
     const totals = {};
     inMonth.filter(m=>m.type!=="income").forEach(m=>{ totals[m.categoryId]=(totals[m.categoryId]||0)+m.amount; });
@@ -114,7 +115,7 @@
       <div class="bar"><span style="width:${(v/spent*100).toFixed(1)}%;background:${c?.color||"#999"}"></span></div></div>`;
     }).join("") : '<div class="empty">Sin gastos en este mes.</div>';
   }
- 
+
   function movementHTML(m){
     const c = category(m.categoryId), card = m.type==="card";
     const sign = m.type==="income" ? "+" : "−";
@@ -131,7 +132,7 @@
       <div class="row-actions"><button class="mini" title="Editar" aria-label="Editar" data-edit="${m.id}">${ic("edit")}</button><button class="mini" title="Eliminar" aria-label="Eliminar" data-delete="${m.id}">${ic("x")}</button></div>
     </div>`;
   }
- 
+
   const typeLabel = {income:"Ingreso", expense:"Gasto", card:"Tarjeta"};
   const typeBadge = {income:"income", expense:"", card:"card"};
   function renderHistory(){
@@ -154,7 +155,7 @@
       <td><div class="row-actions"><button class="mini" aria-label="Editar" data-edit="${m.id}">${ic("edit")}</button><button class="mini" aria-label="Eliminar" data-delete="${m.id}">${ic("x")}</button></div></td></tr>`;
     }).join(""):'<tr><td colspan="6"><div class="empty">No hay movimientos que coincidan con los filtros.</div></td></tr>';
   }
- 
+
   function renderCategories(){
     $("categoryCount").textContent=data.categories.length;
     $("categoryList").innerHTML=data.categories.length?data.categories.map(c=>`<div class="category-item">
@@ -162,7 +163,7 @@
       <div class="category-actions"><button class="mini" aria-label="Editar" data-cat-edit="${c.id}">${ic("edit")}</button><button class="mini" aria-label="Eliminar" data-cat-delete="${c.id}">${ic("x")}</button></div>
     </div>`).join(""):'<div class="empty">No tienes categorías.</div>';
   }
- 
+
   function goalProgress(goal){
     const total = sum(data.movements.filter(m=>m.categoryId===goal.categoryId && m.type==="income"));
     return {total, pct:Math.min(100,(total/goal.target)*100)};
@@ -182,7 +183,7 @@
     $("goalList").innerHTML=data.goals.length?data.goals.map(g=>goalHTML(g,true)).join(""):'<div class="panel empty" style="grid-column:1/-1">Todavía no tienes objetivos. Crea el primero arriba.</div>';
     $("dashboardGoals").innerHTML=data.goals.slice(0,3).map(g=>goalHTML(g)).join("")||'<div class="empty">Crea un objetivo para medir tu progreso.</div>';
   }
- 
+
   function renderCard(){
     const s = data.settings, cs = cardStats();
     $("ccName").textContent = s.cardName || defaultSettings.cardName;
@@ -197,7 +198,7 @@
     $("cardName").value = s.cardName===defaultSettings.cardName ? "" : s.cardName;
     $("payDay").value = String(payDay());
     $("cardLimit").value = limit || "";
- 
+
     // Pagos agrupados por fecha de cobro
     const groups = new Map();
     data.movements.filter(m=>m.type==="card").forEach(m=>{
@@ -215,10 +216,11 @@
     };
     $("statements").innerHTML = keys.length ? [...upcoming,...past].map(html).join("") : '<div class="empty">Aún no registras compras con tarjeta.</div>';
   }
- 
+
   /* ---------- Calendario y meta semanal ---------- */
   const pad = n => String(n).padStart(2,"0");
   const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const parseKey = k => { const [y,m,d] = k.split("-").map(Number); return new Date(y,m-1,d); };
   const addDays = (d,n) => new Date(d.getFullYear(), d.getMonth(), d.getDate()+n);
   const startOfWeek = d => addDays(d, -((d.getDay()+6)%7)); // semana de lunes a domingo
   const compact = n => "$"+new Intl.NumberFormat("es-CO",{notation:"compact",maximumFractionDigits:1}).format(n);
@@ -227,7 +229,7 @@
   let selectedDay = dayKey(new Date());
   // Un gasto cuenta el día en que ocurre; una compra con tarjeta, el día en que se cobra
   const spendDate = m => m.type==="card" ? dueDate(m) : new Date(m.createdAt);
- 
+
   function spendByDay(){
     const map = {}, nowD = new Date();
     data.movements.filter(m=>m.type!=="income").forEach(m=>{
@@ -246,63 +248,77 @@
     }
     return {total, scheduled};
   }
-  function weekBar(total){
-    const max = Number(data.settings.weeklyMax)||0, ideal = Number(data.settings.weeklyIdeal)||0;
-    if(!max) return "";
-    const state = total>max ? "over" : (ideal>0 && total>ideal) ? "warn" : "ok";
-    const mark = ideal>0 && ideal<max ? `<i class="mark" style="left:${ideal/max*100}%"></i>` : "";
-    return `<div class="wbar ${state}"><span style="width:${Math.min(100,total/max*100)}%"></span>${mark}</div>`;
+  // Meta de una semana: la propia (puesta a mano) si existe; si no, la meta general
+  function goalFor(start){
+    const own = data.weekGoals?.[dayKey(start)];
+    if(own) return {max:Number(own.max)||0, ideal:Number(own.ideal)||0, custom:true};
+    return {max:Number(data.settings.weeklyMax)||0, ideal:Number(data.settings.weeklyIdeal)||0, custom:false};
   }
- 
+  function weekBar(total, g){
+    if(!g.max) return "";
+    const state = total>g.max ? "over" : (g.ideal>0 && total>g.ideal) ? "warn" : "ok";
+    const mark = g.ideal>0 && g.ideal<g.max ? `<i class="mark" style="left:${g.ideal/g.max*100}%"></i>` : "";
+    return `<div class="wbar ${state}"><span style="width:${Math.min(100,total/g.max*100)}%"></span>${mark}</div>`;
+  }
+
   function renderCalendar(){
     const map = spendByDay(), today = new Date(), todayKey = dayKey(today);
-    const max = Number(data.settings.weeklyMax)||0, ideal = Number(data.settings.weeklyIdeal)||0;
-    $("weeklyMax").value = max || ""; $("weeklyIdeal").value = ideal || "";
- 
-    // Semana actual
-    const ws = startOfWeek(today), wt = weekTotals(ws, map), left = max - wt.total;
-    $("weekRange").textContent = `${shortDate(ws)} – ${shortDate(addDays(ws,6))}`;
+    const ws = startOfWeek(parseKey(selectedDay)), we = addDays(ws,6), wsKey = dayKey(ws);
+    const g = goalFor(ws), max = g.max, ideal = g.ideal;
+    const wt = weekTotals(ws, map), left = max - wt.total;
+    const curStart = startOfWeek(today), isCurrent = +ws === +curStart, isPast = ws < curStart;
+
+    // Semana seleccionada
+    $("weekTitle").textContent = `Semana del ${shortDate(ws)} al ${shortDate(we)}`;
+    $("weekBadge").hidden = !isCurrent;
     $("weekSpent").textContent = money(wt.total);
-    $("weekBar").innerHTML = weekBar(wt.total);
-    let status = "Define un máximo semanal para medir tu progreso.";
-    if(max){
+    $("weekBar").innerHTML = weekBar(wt.total, g);
+    let status;
+    if(!max) status = "Esta semana no tiene meta. Defínela en el panel de la derecha.";
+    else if(wt.total > max) status = `Superaste tu máximo por ${money(wt.total-max)}.`;
+    else if(isPast) status = ideal>0 && wt.total>ideal ? `Cerraste por encima del ideal, dentro del máximo. Sobraron ${money(left)}.` : `Cerraste dentro de tu meta. Sobraron ${money(left)}.`;
+    else if(isCurrent){
       const daysLeft = 7 - ((today.getDay()+6)%7);
-      if(wt.total > max) status = `Superaste tu máximo por ${money(wt.total-max)}.`;
-      else if(ideal>0 && wt.total>ideal) status = `Pasaste tu ideal, pero sigues dentro del máximo. Te quedan ${money(left)}.`;
-      else status = `Vas dentro de tu meta. Te quedan ${money(left)}, unos ${money(left/daysLeft)} por día.`;
-    }
+      status = ideal>0 && wt.total>ideal ? `Pasaste tu ideal, pero sigues dentro del máximo. Te quedan ${money(left)}.` : `Vas dentro de tu meta. Te quedan ${money(left)}, unos ${money(left/daysLeft)} por día.`;
+    } else status = `Semana por venir. Tu máximo es ${money(max)}.`;
     $("weekStatus").textContent = status;
     $("weekIdeal").textContent = ideal ? money(ideal) : "—";
     $("weekMax").textContent = max ? money(max) : "—";
     $("weekLeft").textContent = max ? money(Math.max(0,left)) : "—";
     $("weekNote").textContent = wt.scheduled>0 ? `Incluye ${money(wt.scheduled)} de tarjeta que se cobra esta semana.` : "";
- 
+
+    // Formulario de meta de la semana seleccionada
+    $("goalWeekLabel").textContent = `Meta del ${shortDate(ws)} al ${shortDate(we)}`;
+    $("goalSource").textContent = g.custom ? "Meta propia de esta semana." : max ? "Usa tu meta general. Guarda una para personalizarla." : "Esta semana no tiene meta.";
+    $("clearWeekGoal").hidden = !g.custom;
+    $("weeklyMax").value = max || ""; $("weeklyIdeal").value = ideal || "";
+
     // Calendario del mes
     $("calLabel").textContent = new Intl.DateTimeFormat("es-CO",{month:"long",year:"numeric"}).format(calMonth);
     const last = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0);
     let html = "", cur = startOfWeek(calMonth);
     while(cur <= last){
-      const t = weekTotals(cur, map); let cells = "";
+      const t = weekTotals(cur, map), gw = goalFor(cur), k = dayKey(cur); let cells = "";
       for(let i=0;i<7;i++){
-        const d = addDays(cur,i), k = dayKey(d), e = map[k], cls = ["cal-day"];
+        const d = addDays(cur,i), dk = dayKey(d), e = map[dk], cls = ["cal-day"];
         if(d.getMonth()!==calMonth.getMonth()) cls.push("out");
-        if(k===todayKey) cls.push("today");
-        if(k===selectedDay) cls.push("sel");
-        cells += `<button type="button" class="${cls.join(" ")}" data-day="${k}"><span class="d">${d.getDate()}</span>${e?`<span class="v${e.future?" future":""}">${compact(e.total)}</span>`:""}</button>`;
+        if(dk===todayKey) cls.push("today");
+        if(dk===selectedDay) cls.push("sel");
+        cells += `<button type="button" class="${cls.join(" ")}" data-day="${dk}"><span class="d">${d.getDate()}</span>${e?`<span class="v${e.future?" future":""}">${compact(e.total)}</span>`:""}</button>`;
       }
-      html += `<div class="cal-week"><div class="cal-days">${cells}</div>
-        <div class="cal-sum"><span>${shortDate(cur)} – ${shortDate(addDays(cur,6))}</span><strong>${money(t.total)}${max?` <em>de ${money(max)}</em>`:""}</strong></div>${weekBar(t.total)}</div>`;
+      html += `<div class="cal-week${k===wsKey?" sel":""}"><div class="cal-days">${cells}</div>
+        <button type="button" class="cal-sum" data-week="${k}"><span>${shortDate(cur)} – ${shortDate(addDays(cur,6))}</span><strong>${money(t.total)}${gw.max?` <em>de ${money(gw.max)}</em>`:""}</strong></button>${weekBar(t.total, gw)}</div>`;
       cur = addDays(cur,7);
     }
     $("calWeeks").innerHTML = html;
- 
+
     // Detalle del día seleccionado
-    const [y,mo,da] = selectedDay.split("-").map(Number), e = map[selectedDay];
-    $("dayTitle").textContent = new Intl.DateTimeFormat("es-CO",{weekday:"long",day:"numeric",month:"long"}).format(new Date(y,mo-1,da));
+    const e = map[selectedDay];
+    $("dayTitle").textContent = new Intl.DateTimeFormat("es-CO",{weekday:"long",day:"numeric",month:"long"}).format(parseKey(selectedDay));
     $("dayTotal").textContent = e ? `Gastos del día: ${money(e.total)}` : "Sin gastos";
     $("dayList").innerHTML = e ? [...e.list].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(movementHTML).join("") : '<div class="empty">No hay gastos registrados este día.</div>';
   }
- 
+
   /* ---------- Navegación ---------- */
   const titles={
     dashboard:["Resumen","Tu dinero, de un vistazo."],
@@ -322,6 +338,8 @@
   document.addEventListener("click",e=>{
     const nav=e.target.closest("[data-page]"); if(nav){navigate(nav.dataset.page);return}
     const dd=e.target.closest("[data-day]");if(dd){selectedDay=dd.dataset.day;renderCalendar();return}
+    const wk=e.target.closest("[data-week]");if(wk){const st=parseKey(wk.dataset.week),cu=parseKey(selectedDay);if(cu<st||cu>addDays(st,6))selectedDay=wk.dataset.week;renderCalendar();return}
+    const wn=e.target.closest("[data-week-prev],[data-week-next]");if(wn){const nd=addDays(parseKey(selectedDay),wn.hasAttribute("data-week-next")?7:-7);selectedDay=dayKey(nd);calMonth=new Date(nd.getFullYear(),nd.getMonth(),1);renderCalendar();return}
     if(e.target.closest("[data-cal-prev]")){calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderCalendar();return}
     if(e.target.closest("[data-cal-next]")){calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderCalendar();return}
     if(e.target.closest("[data-cal-today]")){const t=new Date();calMonth=new Date(t.getFullYear(),t.getMonth(),1);selectedDay=dayKey(t);renderCalendar();return}
@@ -334,7 +352,7 @@
     const gd=e.target.closest("[data-goal-delete]");if(gd){deleteGoal(gd.dataset.goalDelete);return}
   });
   $("menuBtn").onclick=()=>$("sidebar").classList.toggle("open");
- 
+
   /* ---------- Tema ---------- */
   function applyTheme(t){
     document.documentElement.dataset.theme=t;
@@ -346,7 +364,7 @@
     try{localStorage.setItem(THEME_KEY,t)}catch(e){}
     applyTheme(t);
   };
- 
+
   /* ---------- Movimientos ---------- */
   function setType(t){
     movementType=t;
@@ -365,7 +383,7 @@
     hint.hidden=false;
   }
   document.querySelectorAll(".segment button").forEach(b=>b.onclick=()=>setType(b.dataset.type));
- 
+
   $("movementForm").onsubmit=e=>{
     e.preventDefault();
     if(!data.categories.length){toast("Primero crea una categoría.");navigate("categories");return}
@@ -391,7 +409,7 @@
   function deleteMovement(id){if(!confirm("¿Eliminar este movimiento?"))return;data.movements=data.movements.filter(m=>m.id!==id);renderAll();toast("Movimiento eliminado.");}
   $("search").oninput=renderHistory;$("filterType").onchange=renderHistory;$("filterCategory").onchange=renderHistory;$("filterFrom").onchange=renderHistory;$("filterTo").onchange=renderHistory;
   $("monthPick").onchange=renderDashboard;
- 
+
   /* ---------- Tarjeta (configuración) ---------- */
   $("cardForm").onsubmit=e=>{
     e.preventDefault();
@@ -403,17 +421,32 @@
     };
     renderAll();toast("Tarjeta actualizada.");
   };
- 
+
   /* ---------- Meta semanal (configuración) ---------- */
+  function readWeekGoal(){
+    const max=Math.max(0,Number($("weeklyMax").value)||0), ideal=Math.max(0,Number($("weeklyIdeal").value)||0);
+    if(ideal>0 && max===0){toast("Define primero el máximo.");return null}
+    if(max>0 && ideal>max){toast("El ideal no puede ser mayor que el máximo.");return null}
+    return {max,ideal};
+  }
+  const selectedWeekKey = () => dayKey(startOfWeek(parseKey(selectedDay)));
   $("weekGoalForm").onsubmit=e=>{
     e.preventDefault();
-    const mx=Math.max(0,Number($("weeklyMax").value)||0), id=Math.max(0,Number($("weeklyIdeal").value)||0);
-    if(id>0 && mx===0){toast("Define primero el máximo semanal.");return}
-    if(mx>0 && id>mx){toast("El ideal no puede ser mayor que el máximo.");return}
-    data.settings={...data.settings,weeklyMax:mx,weeklyIdeal:id};
-    renderAll();toast("Meta semanal guardada.");
+    const g=readWeekGoal();if(!g)return;
+    data.weekGoals=data.weekGoals||{};
+    if(g.max===0&&g.ideal===0) delete data.weekGoals[selectedWeekKey()]; else data.weekGoals[selectedWeekKey()]=g;
+    renderAll();toast("Meta de la semana guardada.");
   };
- 
+  $("applyAllBtn").onclick=()=>{
+    const g=readWeekGoal();if(!g)return;
+    data.settings={...data.settings,weeklyMax:g.max,weeklyIdeal:g.ideal};
+    renderAll();toast("Meta general guardada para las semanas sin meta propia.");
+  };
+  $("clearWeekGoal").onclick=()=>{
+    delete data.weekGoals[selectedWeekKey()];
+    renderAll();toast("Esta semana vuelve a usar la meta general.");
+  };
+
   /* ---------- Categorías ---------- */
   $("categoryForm").onsubmit=e=>{
     e.preventDefault();const name=$("catName").value.trim();
@@ -434,7 +467,7 @@
     if(data.movements.some(m=>m.categoryId===id)||data.goals.some(g=>g.categoryId===id)){toast("No puedes eliminar una categoría que está en uso.");return}
     if(!confirm("¿Eliminar esta categoría?"))return;data.categories=data.categories.filter(c=>c.id!==id);renderAll();toast("Categoría eliminada.");
   }
- 
+
   /* ---------- Objetivos ---------- */
   $("goalForm").onsubmit=e=>{
     e.preventDefault();const obj={id:editingGoal||crypto.randomUUID(),name:$("goalName").value.trim(),target:Number($("goalTarget").value),categoryId:$("goalCategory").value,deadline:$("goalDate").value||""};
@@ -447,17 +480,16 @@
   $("cancelGoal").onclick=()=>{editingGoal=null;resetGoalForm()};
   function editGoal(id){const g=data.goals.find(x=>x.id===id);if(!g)return;editingGoal=id;$("goalName").value=g.name;$("goalTarget").value=g.target;$("goalCategory").value=g.categoryId;$("goalDate").value=g.deadline||"";$("goalFormTitle").textContent="Editar objetivo";$("cancelGoal").style.display="inline-block";navigate("goals");}
   function deleteGoal(id){if(!confirm("¿Eliminar este objetivo?"))return;data.goals=data.goals.filter(g=>g.id!==id);renderAll();toast("Objetivo eliminado.");}
- 
+
   /* ---------- Reset ---------- */
   $("resetBtn").onclick=()=>{
     if(confirm("Esto eliminará todas las categorías, movimientos, objetivos y la configuración de tarjeta guardados en este navegador. ¿Continuar?")){
       localStorage.removeItem(KEY);data=load();renderAll();toast("Datos restablecidos.");
     }
   };
- 
+
   /* ---------- Inicio ---------- */
   $("monthPick").value = monthOf(new Date());
   applyTheme(document.documentElement.dataset.theme||"light");
   renderAll();resetMovementForm();$("cancelEdit").style.display="none";$("cancelGoal").style.display="none";
 })();
- 

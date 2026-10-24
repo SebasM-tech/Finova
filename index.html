@@ -147,7 +147,13 @@
       <section class="page" id="page-calendar">
         <div class="panel week-hero">
           <div class="week-main">
-            <span class="label">Esta semana, <span id="weekRange"></span></span>
+            <div class="week-top">
+              <div class="week-title"><span class="label" id="weekTitle"></span><span class="badge card" id="weekBadge" hidden>Esta semana</span></div>
+              <div class="cal-nav">
+                <button class="icon-btn" data-week-prev aria-label="Semana anterior"><svg class="ic"><use href="#i-left"/></svg></button>
+                <button class="icon-btn" data-week-next aria-label="Semana siguiente"><svg class="ic"><use href="#i-right"/></svg></button>
+              </div>
+            </div>
             <div class="hero-value" id="weekSpent">$0</div>
             <div id="weekBar" class="week-bar"></div>
             <p class="week-status" id="weekStatus"></p>
@@ -176,13 +182,17 @@
           </div>
           <div class="stack">
             <div class="panel">
-              <div class="panel-head"><h2>Meta semanal</h2></div>
+              <div class="panel-head"><div><h2 id="goalWeekLabel">Meta de la semana</h2><span class="small" id="goalSource"></span></div></div>
               <form id="weekGoalForm">
                 <div class="form-grid one">
-                  <div class="field"><label for="weeklyMax">Máximo por semana</label><input id="weeklyMax" type="number" min="0" step="1" placeholder="Ej. 300000"></div>
-                  <div class="field"><label for="weeklyIdeal">Ideal por semana (opcional)</label><input id="weeklyIdeal" type="number" min="0" step="1" placeholder="Ej. 200000"></div>
+                  <div class="field"><label for="weeklyMax">Máximo de esta semana</label><input id="weeklyMax" type="number" min="0" step="1" placeholder="Ej. 300000"></div>
+                  <div class="field"><label for="weeklyIdeal">Ideal de esta semana (opcional)</label><input id="weeklyIdeal" type="number" min="0" step="1" placeholder="Ej. 200000"></div>
                 </div>
-                <div class="actions"><button class="btn primary" type="submit">Guardar meta</button></div>
+                <div class="actions wrap">
+                  <button type="button" class="btn ghost" id="clearWeekGoal" hidden>Quitar meta propia</button>
+                  <button type="button" class="btn" id="applyAllBtn" title="Se usará en las semanas que no tengan una meta propia">Usar como meta general</button>
+                  <button class="btn primary" type="submit">Guardar semana</button>
+                </div>
               </form>
             </div>
             <div class="panel">

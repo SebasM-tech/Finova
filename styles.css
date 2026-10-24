@@ -304,3 +304,12 @@ tbody tr:last-child td{border-bottom:0}
   .cal-day .v{font-size:.62rem}
   .bottom-nav button{padding:4px 6px}
 }
+
+[hidden]{display:none!important}
+.week-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:2px}
+.week-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.actions.wrap{flex-wrap:wrap}
+button.cal-sum{width:calc(100% - 8px);border:0;background:transparent;font:inherit;text-align:left;cursor:pointer;padding:4px 0;border-radius:8px}
+button.cal-sum:hover{color:var(--ink)}
+.cal-week.sel .cal-sum span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle}
+.cal-week.sel .cal-sum span{color:var(--ink)}
